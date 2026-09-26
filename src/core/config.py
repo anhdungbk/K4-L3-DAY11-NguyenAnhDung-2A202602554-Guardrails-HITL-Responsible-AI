@@ -169,13 +169,30 @@ def get_openai_api_key() -> str:
     return os.environ.get("OPENAI_API_KEY", "").strip()
 
 
+def red_uses_openrouter() -> bool:
+    """Route the OpenAI-compatible Red runtime through OpenRouter when enabled."""
+    return os.environ.get("RED_TEAM_USE_OPENROUTER", "").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+
+
 def red_openai_client_kwargs() -> dict:
+    if red_uses_openrouter():
+        return {
+            "api_key": get_openrouter_api_key() or None,
+            "base_url": (
+                os.environ.get("OPENROUTER_BASE_URL", OPENROUTER_BASE_URL).strip()
+                or OPENROUTER_BASE_URL
+            ),
+        }
     return {"api_key": get_openai_api_key() or None}
 
 
 def red_provider_label(tier: str = "advance") -> str:
     # tier giữ để tương thích call site; cả hai agent cùng model .env
     _ = tier
+    if red_uses_openrouter():
+        return f"openrouter:{get_red_model()}"
     return f"{get_red_provider()}:{get_red_model()}"
 
 
@@ -249,6 +266,8 @@ def setup_api_key():
             os.environ["GOOGLE_API_KEY"] = input("Enter Google API Key (Red): ").strip()
         os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "0"
         print(f"Red / Red Advance  — gemini:{model}")
+    elif red_uses_openrouter():
+        print(f"Red / Red Advance  — openrouter:{model}")
     else:
         if not get_openai_api_key():
             os.environ["OPENAI_API_KEY"] = input("Enter OpenAI API Key (Red): ").strip()
